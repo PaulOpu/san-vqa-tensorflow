@@ -218,7 +218,7 @@ def get_data():
     print('loading json file...')
     with open(input_json) as data_file:
         data = json.load(data_file)
-    for key in list(data.keys()):
+    for key in data.keys():
         dataset[key] = data[key]
 
     # load image feature
@@ -266,7 +266,7 @@ def get_data_test():
     print('loading json file...')
     with open(input_json) as data_file:
         data = json.load(data_file)
-    for key in list(data.keys()):
+    for key in data.keys():
         dataset[key] = data[key]
 
     # load image feature
@@ -319,8 +319,8 @@ def train():
     print('loading dataset...')
     dataset, img_feature, train_data = get_data()
     num_train = train_data['question'].shape[0]
-    vocabulary_size = len(list(dataset['ix_to_word'].keys()))
-    print(('vocabulary_size : ' + str(vocabulary_size)))
+    vocabulary_size = len(dataset['ix_to_word'].keys())
+    print('vocabulary_size : ' + str(vocabulary_size))
 
     print('constructing  model...')
     model = Answer_Generator(
@@ -379,19 +379,19 @@ def train():
 
         tStop = time.time()
         if np.mod(itr, 100) == 0:
-            print(("Iteration: ", itr, " Loss: ", loss, " Learning Rate: ", lr.eval(session=sess)))
-            print(("Time Cost:", round(tStop - tStart,2), "s"))
+            print("Iteration: ", itr, " Loss: ", loss, " Learning Rate: ", lr.eval(session=sess))
+            print("Time Cost:", round(tStop - tStart,2), "s")
             tf.summary.scalar('loss', loss.result(), step=itr)
         if np.mod(itr, 5000) == 0:
-            print(("Iteration ", itr, " is done. Saving the model ..."))
+            print("Iteration ", itr, " is done. Saving the model ...")
             saver.save(sess, os.path.join(checkpoint_path, 'model'), global_step=itr)
 
 def test():
-    print('loading dataset...')
+    print 'loading dataset...'
     dataset, img_feature, test_data = get_data_test()
     num_test = test_data['question'].shape[0]
-    vocabulary_size = len(list(dataset['ix_to_word'].keys()))
-    print('vocabulary_size : ' + str(vocabulary_size))
+    vocabulary_size = len(dataset['ix_to_word'].keys())
+    print 'vocabulary_size : ' + str(vocabulary_size)
 
     model = Answer_Generator(
             rnn_size = rnn_size,
@@ -415,14 +415,14 @@ def test():
 
     tStart_total = time.time()
     result = []
-    for current_batch_start_idx in range(0,num_test-1,batch_size):
+    for current_batch_start_idx in xrange(0,num_test-1,batch_size):
     #for current_batch_start_idx in xrange(0,3,batch_size):
         tStart = time.time()
         # set data into current*
         if current_batch_start_idx + batch_size < num_test:
-            current_batch_file_idx = list(range(current_batch_start_idx,current_batch_start_idx+batch_size))
+            current_batch_file_idx = range(current_batch_start_idx,current_batch_start_idx+batch_size)
         else:
-            current_batch_file_idx = list(range(current_batch_start_idx,num_test))
+            current_batch_file_idx = range(current_batch_start_idx,num_test)
 
         current_question = test_data['question'][current_batch_file_idx,:]
         current_length_q = test_data['length_q'][current_batch_file_idx]
@@ -456,20 +456,20 @@ def test():
 
 
         # initialize json list
-        for i in range(0,batch_size):
+        for i in xrange(0,batch_size):
             ans = dataset['ix_to_ans'][str(top_ans[i]+1)]
             if(current_ques_id[i] == 0):
                 continue
-            result.append({'answer': ans, 'question_id': str(current_ques_id[i])})
+            result.append({u'answer': ans, u'question_id': str(current_ques_id[i])})
 
         tStop = time.time()
-        print(("Testing batch: ", current_batch_file_idx[0]))
-        print(("Time Cost:", round(tStop - tStart,2), "s"))
+        print ("Testing batch: ", current_batch_file_idx[0])
+        print ("Time Cost:", round(tStop - tStart,2), "s")
     print ("Testing done.")
     tStop_total = time.time()
-    print(("Total Time Cost:", round(tStop_total - tStart_total,2), "s"))
+    print ("Total Time Cost:", round(tStop_total - tStart_total,2), "s")
     # Save to JSON
-    print('Saving result...')
+    print 'Saving result...'
     my_list = list(result)
     dd = json.dump(my_list,open('san_lstm_att.json','w'))
 

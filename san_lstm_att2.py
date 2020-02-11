@@ -8,7 +8,7 @@ import cv2
 import json
 import pdb
 import datetime
-rnn_cell = tf.contrib.rnn
+rnn_cell = tf.compat.v1.nn.rnn_cell
 
 class Answer_Generator():
     def __init__(self, rnn_size, rnn_layer, batch_size, input_embedding_size, dim_image, dim_hidden, dim_attention, max_words_q, vocabulary_size, drop_out_rate):
@@ -25,98 +25,101 @@ class Answer_Generator():
         self.drop_out_rate = drop_out_rate
 
         # question-embedding
-        self.embed_ques_W = tf.Variable(tf.random_uniform([self.vocabulary_size, self.input_embedding_size], -0.08, 0.08), name='embed_ques_W')
+        self.embed_ques_W = tf.Variable(tf.random.uniform([self.vocabulary_size, self.input_embedding_size], -0.08, 0.08), name='embed_ques_W')
 
         # encoder: RNN body
-        self.lstm_1 = rnn_cell.LSTMCell(rnn_size, input_embedding_size, use_peepholes=True)
+        #self.lstm_1 = rnn_cell.LSTMCell(rnn_size, input_embedding_size, use_peepholes=True)
+        self.lstm_1 = rnn_cell.LSTMCell(rnn_size, use_peepholes=True)
         self.lstm_dropout_1 = rnn_cell.DropoutWrapper(self.lstm_1, output_keep_prob = 1 - self.drop_out_rate)
-        self.lstm_2 = rnn_cell.LSTMCell(rnn_size, rnn_size, use_peepholes=True)
+        #self.lstm_2 = rnn_cell.LSTMCell(rnn_size, rnn_size, use_peepholes=True)
+        self.lstm_2 = rnn_cell.LSTMCell(rnn_size, use_peepholes=True)
+
         self.lstm_dropout_2 = rnn_cell.DropoutWrapper(self.lstm_2, output_keep_prob = 1 - self.drop_out_rate)
         self.stacked_lstm = rnn_cell.MultiRNNCell([self.lstm_dropout_1, self.lstm_dropout_2])
 
         # image-embedding
-        self.embed_image_W = tf.Variable(tf.random_uniform([self.dim_image[2], self.dim_hidden], -0.08, 0.08), name='embed_image_W')
-        self.embed_image_b = tf.Variable(tf.random_uniform([self.dim_hidden], -0.08, 0.08), name='embed_image_b')
+        self.embed_image_W = tf.Variable(tf.random.uniform([self.dim_image[2], self.dim_hidden], -0.08, 0.08), name='embed_image_W')
+        self.embed_image_b = tf.Variable(tf.random.uniform([self.dim_hidden], -0.08, 0.08), name='embed_image_b')
         # score-embedding
-        self.embed_scor_W = tf.Variable(tf.random_uniform([self.dim_hidden, num_output], -0.08, 0.08), name='embed_scor_W')
-        self.embed_scor_b = tf.Variable(tf.random_uniform([num_output], -0.08, 0.08), name='embed_scor_b')
+        self.embed_scor_W = tf.Variable(tf.random.uniform([self.dim_hidden, num_output], -0.08, 0.08), name='embed_scor_W')
+        self.embed_scor_b = tf.Variable(tf.random.uniform([num_output], -0.08, 0.08), name='embed_scor_b')
 
     def build_model(self):
-        image = tf.placeholder(tf.float32, [self.batch_size, self.dim_image[0], self.dim_image[1], self.dim_image[2]])
-        question = tf.placeholder(tf.int32, [self.batch_size, self.max_words_q])
-        label = tf.placeholder(tf.int64, [self.batch_size,]) 
+        image = tf.compat.v1.placeholder(tf.float32, [self.batch_size, self.dim_image[0], self.dim_image[1], self.dim_image[2]])
+        question = tf.compat.v1.placeholder(tf.int32, [self.batch_size, self.max_words_q])
+        label = tf.compat.v1.placeholder(tf.int64, [self.batch_size,]) 
         
         state = self.stacked_lstm.zero_state(self.batch_size, tf.float32)
         loss = 0.0
-        with tf.variable_scope("embed"):
+        with tf.compat.v1.variable_scope("embed"):
             for i in range(max_words_q):
                 if i==0:
                     ques_emb_linear = tf.zeros([self.batch_size, self.input_embedding_size])
                 else:
-                    tf.get_variable_scope().reuse_variables()
-                    ques_emb_linear = tf.nn.embedding_lookup(self.embed_ques_W, question[:,i-1])
+                    tf.compat.v1.get_variable_scope().reuse_variables()
+                    ques_emb_linear = tf.nn.embedding_lookup(params=self.embed_ques_W, ids=question[:,i-1])
 
                 # LSTM based question model
-                ques_emb_drop = tf.nn.dropout(ques_emb_linear, 1-self.drop_out_rate)
+                ques_emb_drop = tf.nn.dropout(ques_emb_linear, 1 - (1-self.drop_out_rate))
                 ques_emb = tf.tanh(ques_emb_drop)
 
                 output, state = self.stacked_lstm(ques_emb, state)
 
         # multimodal (fusing question & image)
-        question_emb = tf.reshape(tf.transpose(state, [2, 1, 0, 3]), [self.batch_size, -1])
+        question_emb = tf.reshape(tf.transpose(a=state, perm=[2, 1, 0, 3]), [self.batch_size, -1])
 
         image_emb = tf.reshape(image, [-1, self.dim_image[2]]) # (b x m) x d
-        image_emb = tf.nn.xw_plus_b(image_emb, self.embed_image_W, self.embed_image_b)
+        image_emb = tf.compat.v1.nn.xw_plus_b(image_emb, self.embed_image_W, self.embed_image_b)
         image_emb = tf.tanh(image_emb)
 
         #attention models
-        with tf.variable_scope("att1"):
+        with tf.compat.v1.variable_scope("att1"):
             prob_att1, comb_emb = self.attention(question_emb, image_emb)
-        with tf.variable_scope("att2"):
+        with tf.compat.v1.variable_scope("att2"):
             prob_att2, comb_emb = self.attention(comb_emb, image_emb)
-        comb_emb = tf.nn.dropout(comb_emb, 1 - self.drop_out_rate)
-        scores_emb = tf.nn.xw_plus_b(comb_emb, self.embed_scor_W, self.embed_scor_b) 
+        comb_emb = tf.nn.dropout(comb_emb, 1 - (1 - self.drop_out_rate))
+        scores_emb = tf.compat.v1.nn.xw_plus_b(comb_emb, self.embed_scor_W, self.embed_scor_b) 
 
         # Calculate cross entropy
         cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=label, logits=scores_emb)
 
         # Calculate loss
-        loss = tf.reduce_mean(cross_entropy)
+        loss = tf.reduce_mean(input_tensor=cross_entropy)
         
         return loss, image, question, label
     
     def build_generator(self):
-        image = tf.placeholder(tf.float32, [self.batch_size, self.dim_image[0], self.dim_image[1], self.dim_image[2]])
-        question = tf.placeholder(tf.int32, [self.batch_size, self.max_words_q])
+        image = tf.compat.v1.placeholder(tf.float32, [self.batch_size, self.dim_image[0], self.dim_image[1], self.dim_image[2]])
+        question = tf.compat.v1.placeholder(tf.int32, [self.batch_size, self.max_words_q])
 
         state = self.stacked_lstm.zero_state(self.batch_size, tf.float32)
-        with tf.variable_scope("embed"):
+        with tf.compat.v1.variable_scope("embed"):
             for i in range(max_words_q):
                 if i==0:
                     ques_emb_linear = tf.zeros([self.batch_size, self.input_embedding_size])
                 else:
-                    tf.get_variable_scope().reuse_variables()
-                    ques_emb_linear = tf.nn.embedding_lookup(self.embed_ques_W, question[:,i-1])
+                    tf.compat.v1.get_variable_scope().reuse_variables()
+                    ques_emb_linear = tf.nn.embedding_lookup(params=self.embed_ques_W, ids=question[:,i-1])
 
-                ques_emb_drop = tf.nn.dropout(ques_emb_linear, 1-self.drop_out_rate)
+                ques_emb_drop = tf.nn.dropout(ques_emb_linear, 1 - (1-self.drop_out_rate))
                 ques_emb = tf.tanh(ques_emb_drop)
                 
                 output, state = self.stacked_lstm(ques_emb, state)
 
         # multimodal (fusing question & image)
-        question_emb = tf.reshape(tf.transpose(state, [2, 1, 0, 3]), [self.batch_size, -1])
+        question_emb = tf.reshape(tf.transpose(a=state, perm=[2, 1, 0, 3]), [self.batch_size, -1])
 
         image_emb = tf.reshape(image, [-1, self.dim_image[2]]) # (b x m) x d
-        image_emb = tf.nn.xw_plus_b(image_emb, self.embed_image_W, self.embed_image_b)
+        image_emb = tf.compat.v1.nn.xw_plus_b(image_emb, self.embed_image_W, self.embed_image_b)
         image_emb = tf.tanh(image_emb)
 
         #attention models
-        with tf.variable_scope("att1"):
+        with tf.compat.v1.variable_scope("att1"):
             prob_att1, comb_emb = self.attention(question_emb, image_emb)
-        with tf.variable_scope("att2"):
+        with tf.compat.v1.variable_scope("att2"):
             prob_att2, comb_emb = self.attention(comb_emb, image_emb)
-        comb_emb = tf.nn.dropout(comb_emb, 1 - self.drop_out_rate)
-        scores_emb = tf.nn.xw_plus_b(comb_emb, self.embed_scor_W, self.embed_scor_b) 
+        comb_emb = tf.nn.dropout(comb_emb, 1 - (1 - self.drop_out_rate))
+        scores_emb = tf.compat.v1.nn.xw_plus_b(comb_emb, self.embed_scor_W, self.embed_scor_b) 
 
         # FINAL ANSWER
         generated_ANS = tf.nn.softmax(scores_emb)
@@ -126,31 +129,31 @@ class Answer_Generator():
     def attention(self, question_emb, image_emb):
         # Attention weight
         # question-attention
-        ques_att_W = tf.get_variable('ques_att_W', [self.dim_hidden, self.dim_att], 
-                            initializer=tf.random_uniform_initializer(-0.08, 0.08))
-        ques_att_b = tf.get_variable('ques_att_b', [self.dim_att], 
-                            initializer=tf.random_uniform_initializer(-0.08, 0.08))
+        ques_att_W = tf.compat.v1.get_variable('ques_att_W', [self.dim_hidden, self.dim_att], 
+                            initializer=tf.compat.v1.random_uniform_initializer(-0.08, 0.08))
+        ques_att_b = tf.compat.v1.get_variable('ques_att_b', [self.dim_att], 
+                            initializer=tf.compat.v1.random_uniform_initializer(-0.08, 0.08))
         # image-attention
-        image_att_W = tf.get_variable('image_att_W', [self.dim_hidden, self.dim_att], 
-                            initializer=tf.random_uniform_initializer(-0.08, 0.08))
-        image_att_b = tf.get_variable('image_att_b', [self.dim_att], 
-                            initializer=tf.random_uniform_initializer(-0.08, 0.08))
+        image_att_W = tf.compat.v1.get_variable('image_att_W', [self.dim_hidden, self.dim_att], 
+                            initializer=tf.compat.v1.random_uniform_initializer(-0.08, 0.08))
+        image_att_b = tf.compat.v1.get_variable('image_att_b', [self.dim_att], 
+                            initializer=tf.compat.v1.random_uniform_initializer(-0.08, 0.08))
         # probability-attention
-        prob_att_W = tf.get_variable('prob_att_W', [self.dim_att, 1], 
-                            initializer=tf.random_uniform_initializer(-0.08, 0.08))
-        prob_att_b = tf.get_variable('prob_att_b', [1], 
-                            initializer=tf.random_uniform_initializer(-0.08, 0.08))
+        prob_att_W = tf.compat.v1.get_variable('prob_att_W', [self.dim_att, 1], 
+                            initializer=tf.compat.v1.random_uniform_initializer(-0.08, 0.08))
+        prob_att_b = tf.compat.v1.get_variable('prob_att_b', [1], 
+                            initializer=tf.compat.v1.random_uniform_initializer(-0.08, 0.08))
 
         question_att = tf.expand_dims(question_emb, 1) # b x 1 x d
         question_att = tf.tile(question_att, tf.constant([1, self.dim_image[0] * self.dim_image[1], 1])) # b x m x d
         question_att = tf.reshape(question_att, [-1, self.dim_hidden]) # (b x m) x d
-        question_att = tf.tanh(tf.nn.xw_plus_b(question_att, ques_att_W, ques_att_b)) # (b x m) x k
+        question_att = tf.tanh(tf.compat.v1.nn.xw_plus_b(question_att, ques_att_W, ques_att_b)) # (b x m) x k
         
-        image_att = tf.tanh(tf.nn.xw_plus_b(image_emb, image_att_W, image_att_b)) # (b x m) x k
+        image_att = tf.tanh(tf.compat.v1.nn.xw_plus_b(image_emb, image_att_W, image_att_b)) # (b x m) x k
 
         output_att = tf.tanh(image_att + question_att) # (b x m) x k
-        output_att = tf.nn.dropout(output_att, 1 - self.drop_out_rate)
-        prob_att = tf.nn.xw_plus_b(output_att, prob_att_W, prob_att_b) # (b x m) x 1
+        output_att = tf.nn.dropout(output_att, 1 - (1 - self.drop_out_rate))
+        prob_att = tf.compat.v1.nn.xw_plus_b(output_att, prob_att_W, prob_att_b) # (b x m) x 1
         prob_att = tf.reshape(prob_att, [self.batch_size, self.dim_image[0] * self.dim_image[1]]) # b x m
         prob_att = tf.nn.softmax(prob_att)
 
@@ -160,7 +163,7 @@ class Answer_Generator():
             image_att.append(tf.matmul(tf.expand_dims(prob_att[b,:],0), image_emb[b,:,:]))
 
         image_att = tf.stack(image_att)
-        image_att = tf.reduce_sum(image_att, 1)
+        image_att = tf.reduce_sum(input_tensor=image_att, axis=1)
 
         comb_emb = tf.add(image_att, question_emb)
 
@@ -181,7 +184,7 @@ learning_rate = 0.0003                  # learning rate for rmsprop
 #learning_rate = 0.0003                  # learning rate for rmsprop
 #starter_learning_rate = 3e-4
 learning_rate_decay_start = -1          # at what iteration to start decaying learning rate? (-1 = dont)
-batch_size = 100                        # batch_size for each iterations
+batch_size = 150 #100                       # batch_size for each iterations
 input_embedding_size = 512 #200              # the encoding size of each token in the vocabulary
 rnn_size = 256                         # size of the rnn in number of hidden nodes in each layer
 rnn_layer = 2                           # number of the rnn layer
@@ -226,7 +229,7 @@ def get_data():
     with h5py.File(input_img_h5,'r') as hf:
         # -----0~82459------
         tem = hf.get('images_train')
-        img_feature = np.array(tem)
+        img_feature = np.array(tem)#[:1000]
     # load h5 file
     print('loading h5 file...')
     with h5py.File(input_ques_h5,'r') as hf:
@@ -313,7 +316,7 @@ def get_data_test():
 
 def train():
     current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    train_log_dir = 'logs/' + current_time + '/train'
+    train_log_dir = '/workspace/logs/' + current_time + '/train'
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 
     print('loading dataset...')
@@ -337,21 +340,21 @@ def train():
 
     tf_loss, tf_image, tf_question, tf_label = model.build_model()
 
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5, allow_growth=True)
-    sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+    gpu_options = tf.compat.v1.GPUOptions(per_process_gpu_memory_fraction=0.5, allow_growth=True)
+    sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(gpu_options=gpu_options))
     with tf.device('/cpu:0'):
-        saver = tf.train.Saver(max_to_keep=100)
+        saver = tf.compat.v1.train.Saver(max_to_keep=100)
 
-    tvars = tf.trainable_variables()
+    tvars = tf.compat.v1.trainable_variables()
     lr = tf.Variable(learning_rate)
-    opt = tf.train.AdamOptimizer(learning_rate=lr)
+    opt = tf.compat.v1.train.AdamOptimizer(learning_rate=lr)
     # gradient clipping
     gvs = opt.compute_gradients(tf_loss,tvars)
     with tf.device('/cpu:0'):
         clipped_gvs = [(tf.clip_by_value(grad, -10.0, 10.0), var) for grad, var in gvs if grad is not None]
     train_op = opt.apply_gradients(clipped_gvs)
 
-    sess.run(tf.initialize_all_variables())
+    sess.run(tf.compat.v1.initialize_all_variables())
 
     print('start training...')
     for itr in range(max_itr):
@@ -381,7 +384,7 @@ def train():
         if np.mod(itr, 100) == 0:
             print(("Iteration: ", itr, " Loss: ", loss, " Learning Rate: ", lr.eval(session=sess)))
             print(("Time Cost:", round(tStop - tStart,2), "s"))
-            tf.summary.scalar('loss', loss.result(), step=itr)
+            tf.summary.scalar('loss', loss, step=itr)
         if np.mod(itr, 5000) == 0:
             print(("Iteration ", itr, " is done. Saving the model ..."))
             saver.save(sess, os.path.join(checkpoint_path, 'model'), global_step=itr)
@@ -407,10 +410,10 @@ def test():
 
     tf_answer, tf_image, tf_question, tf_prob_att1, tf_prob_att2 = model.build_generator()
 
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5, allow_growth=True)
-    sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+    gpu_options = tf.compat.v1.GPUOptions(per_process_gpu_memory_fraction=0.5, allow_growth=True)
+    sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(gpu_options=gpu_options))
     with tf.device('/cpu:0'):
-        saver = tf.train.Saver()
+        saver = tf.compat.v1.train.Saver()
         saver.restore(sess, os.path.join(checkpoint_path, 'model-70000'))
 
     tStart_total = time.time()
@@ -474,7 +477,7 @@ def test():
     dd = json.dump(my_list,open('san_lstm_att.json','w'))
 
 if __name__ == '__main__':
-    
+    tf.compat.v1.disable_eager_execution()
     with tf.device('/gpu:'+str(0)):
         train()
     """
