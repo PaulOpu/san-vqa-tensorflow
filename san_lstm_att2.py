@@ -319,7 +319,13 @@ def train():
     train_log_dir = '/workspace/logs/' + current_time + '/train'
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 
-    print('loading dataset...')
+    with train_summary_writer.as_default():
+        tf.summary.scalar('test', 0, step=0)
+        tf.summary.scalar('test', 1, step=1)
+        train_summary_writer.flush()
+
+    print('loading dataset...') 
+    sys.stdout.flush() 
     dataset, img_feature, train_data = get_data()
     num_train = train_data['question'].shape[0]
     vocabulary_size = len(list(dataset['ix_to_word'].keys()))
@@ -384,10 +390,14 @@ def train():
         if np.mod(itr, 100) == 0:
             print(("Iteration: ", itr, " Loss: ", loss, " Learning Rate: ", lr.eval(session=sess)))
             print(("Time Cost:", round(tStop - tStart,2), "s"))
-            tf.summary.scalar('loss', loss, step=itr)
+            with train_summary_writer.as_default():
+                tf.summary.scalar('loss', loss, step=itr)
+                train_summary_writer.flush()
         if np.mod(itr, 5000) == 0:
             print(("Iteration ", itr, " is done. Saving the model ..."))
             saver.save(sess, os.path.join(checkpoint_path, 'model'), global_step=itr)
+        sys.stdout.flush() 
+
 
 def test():
     print('loading dataset...')
@@ -476,9 +486,16 @@ def test():
     my_list = list(result)
     dd = json.dump(my_list,open('san_lstm_att.json','w'))
 
+
+#from contextlib import redirect_stdout
+
 if __name__ == '__main__':
-    tf.compat.v1.disable_eager_execution()
+    #tf.compat.v1.disable_eager_execution()
+    #with open('/workspace/logs/test.txt', 'w') as out:
+    #    with redirect_stdout(out):
+    #        print("start")
     with tf.device('/gpu:'+str(0)):
+        print("training")
         train()
     """
     with tf.device('/gpu: 0'):
