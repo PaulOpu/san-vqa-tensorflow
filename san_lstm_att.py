@@ -401,12 +401,21 @@ def get_data_test():
     return dataset, img_feature, test_data
 
 def train():
+<<<<<<< HEAD
     
 
     print('loading dataset...',flush=True)
     #Chargrid
     dataset, train_img_feature, train_data = get_data()
     #dataset, train_img_feature, train_data, test_img_feature, test_data = get_train_val_data()
+=======
+    current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    train_log_dir = 'logs/' + current_time + '/train'
+    train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+
+    print('loading dataset...')
+    dataset, img_feature, train_data = get_data()
+>>>>>>> 78ef1b48a0aa9b6fbe73bbe2b8a46524f09a1c88
     num_train = train_data['question'].shape[0]
     vocabulary_size = len(list(dataset['ix_to_word'].keys()))
     print(('vocabulary_size : ' + str(vocabulary_size)))
@@ -490,6 +499,7 @@ def train():
         
             
         if np.mod(itr, 100) == 0:
+<<<<<<< HEAD
             #print(("Iteration: ", itr, " Loss: ", loss,"Acc: ",acc, " Learning Rate: ", lr.eval(session=sess)))
             print(("Iteration: ", itr, " Loss: ", loss, " Learning Rate: ", lr.eval(session=sess)))
             print(("Time Cost:", round(tStop - tStart,2), "s"),flush=True)
@@ -497,6 +507,11 @@ def train():
             file_writer.add_summary(summary, itr)
             file_writer.flush()
             
+=======
+            print(("Iteration: ", itr, " Loss: ", loss, " Learning Rate: ", lr.eval(session=sess)))
+            print(("Time Cost:", round(tStop - tStart,2), "s"))
+            tf.summary.scalar('loss', loss.result(), step=itr)
+>>>>>>> 78ef1b48a0aa9b6fbe73bbe2b8a46524f09a1c88
         if np.mod(itr, 5000) == 0:
             print(("Iteration ", itr, " is done. Saving the model ..."))
             saver.save(sess, os.path.join(checkpoint_path, 'model'), global_step=itr)
