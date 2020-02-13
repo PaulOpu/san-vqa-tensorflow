@@ -87,7 +87,7 @@ class Answer_Generator():
         
         #Chargrid Accuracy
         #softmax = tf.nn.softmax(logits=scores_emb)
-        #generated_answer = tf.math.argmax(softmax,1)
+        #generated_answer = tf.argmax(softmax,1)
         #m = tf.keras.metrics.Accuracy() 
         #accuracy = m.update_state(label,generated_answer)
         
@@ -202,6 +202,7 @@ decay_factor = 0.99997592083
 
 # Check point
 checkpoint_path = '/workspace/models/san_lstm_att'
+log_path = '/workspace/logs'
 
 # misc
 gpu_id = 0
@@ -221,6 +222,7 @@ def right_align(seq,lengths):
 def get_train_val_data():
     dataset = {}
     train_data = {}
+    test_data = {}
     # load json file
     print('loading json file...')
     with open(input_json) as data_file:
@@ -270,25 +272,25 @@ def get_train_val_data():
         tem = hf.get('MC_ans_test')
         test_data['MC_ans_test'] = np.array(tem)
         # answer is 1~1000
-        tem = hf.get('answers')
-        test_data['answers'] = np.array(tem)-1
+        #tem = hf.get('answers')
+        #test_data['answers'] = np.array(tem)-1
         
 
     print('question aligning')
     train_data['question'] = right_align(train_data['question'], train_data['length_q'])
     
-    print('question aligning')
+    print('question aligning test')
     test_data['question'] = right_align(test_data['question'], test_data['length_q'])
 
-    print('Normalizing image feature')
+    
     if img_norm:
+        print('Normalizing image feature')
         tem = np.sqrt(np.sum(np.multiply(train_img_feature, train_img_feature), axis=1))
         
         train_img_feature = np.transpose(train_img_feature,(0,2,3,1))
         train_img_feature = np.divide(train_img_feature, np.transpose(np.tile(tem,[512,1,1,1]),(1,2,3,0)) + 1e-8)
 
-    print('Normalizing image feature')
-    if img_norm:
+        print('Normalizing image feature test')
         #tem = np.sqrt(np.sum(np.multiply(test_img_feature, test_img_feature), axis=1))
         tem = np.sqrt(np.sum(np.multiply(test_img_feature, test_img_feature), axis=1))
         
@@ -438,7 +440,7 @@ def train():
     
     #Chargrid
     current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    train_log_dir = 'logs/' + current_time + '/train'
+    train_log_dir = log_path + current_time + '/train'
     file_writer = tf.summary.FileWriter(train_log_dir, sess.graph)
 
     with tf.device('/cpu:0'):
@@ -463,6 +465,7 @@ def train():
     for itr in range(max_itr):
         tStart = time.time()
         # shuffle the training data
+        #Chargrid: is that correct
         index = np.random.random_integers(0, num_train-1, batch_size)
 
         current_question = train_data['question'][index,:]
@@ -490,8 +493,8 @@ def train():
         
             
         if np.mod(itr, 100) == 0:
-            #print(("Iteration: ", itr, " Loss: ", loss,"Acc: ",acc, " Learning Rate: ", lr.eval(session=sess)))
             print(("Iteration: ", itr, " Loss: ", loss, " Learning Rate: ", lr.eval(session=sess)))
+            #print(("Iteration: ", itr, " Loss: ", loss, " Learning Rate: ", lr.eval(session=sess)))
             print(("Time Cost:", round(tStop - tStart,2), "s"),flush=True)
             #Chargrid
             file_writer.add_summary(summary, itr)
@@ -501,8 +504,23 @@ def train():
             print(("Iteration ", itr, " is done. Saving the model ..."))
             saver.save(sess, os.path.join(checkpoint_path, 'model'), global_step=itr)
             
-            #Chargrid testing
-
+            #Chargrid testing on 50000 from train and test set
+            
+                
+            
+#def test_during_training(test_size,batch_size,train_data,test_data,n_train,n_test,train_img,test_img ... ):
+#    for dataset,n_items,data_img in [(train_data,n_train,train_img),(test_data,n_test,test_img)]:
+#        test_indices = np.random.random_integers(0, n_items-1, test_size)
+#    
+#        for i in range(batch_size,test_size,batch_size):
+#            current_indices = test_indices[(i-batch_size):i]
+#            
+#            current_question = dataset['question'][current_indices,:]
+#            current_length_q = dataset['length_q'][current_indices]
+#            current_answers = dataset['answers'][current_indices]
+#            current_img_list = dataset['img_list'][current_indices]
+#            current_img = data_img[current_img_list,:]
+            
             
 
 def test():

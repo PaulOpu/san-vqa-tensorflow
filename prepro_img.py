@@ -8,8 +8,8 @@ from progress.bar import Bar
 
 [IMG_HEIGHT, IMG_WIDTH] = [224, 224]
 
-input_json = 'data_prepro.json'
-image_root = 'data'
+input_json = '/workspace/datasets/dvqa-tf/data_prepro.json'
+image_root = '/workspace/datasets/dvqa/images'
 # vgg19
 cnn_proto = 'vgg19/deploy_batch40.prototxt'
 cnn_model = 'vgg19/VGG_ILSVRC_19_layers.caffemodel'
@@ -31,7 +31,7 @@ def extract_feat(imlist, dname):
         batch_imname = imlist[start:end]
         for b in xrange(end-start):
             imname = os.path.join(image_root, batch_imname[b].encode('utf-8'))
-            I = imresize(cv2.imread(imname), (IMG_HEIGHT, IMG_WIDTH))-mean
+            I = imresize(cv2.imread(imname), (224, 224))-mean
             I = np.transpose(I, (2, 0, 1))
             batch_image[b, ...] = I
         net.blobs['data'].data[:] = batch_image

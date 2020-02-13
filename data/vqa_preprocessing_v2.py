@@ -38,38 +38,41 @@ def main(params):
 
     train = []
     test = []
-    imdir='%s/COCO_%s_%012d.jpg'
+    #imdir='%s/COCO_%s_%012d.jpg'
+    data_dir = "/workspace/datasets/"
+    imdir=os.path.join(data_dir,"dvqa","images")
+    output_dir = os.path.join(data_dir,"dvqa-tf")
 
     if params['split'] == 1:
 
-        print 'Loading annotations and questions...'
-        train_anno = json.load(open('annotations/v2_mscoco_train2014_annotations.json', 'r'))
-        val_anno = json.load(open('annotations/v2_mscoco_val2014_annotations.json', 'r'))
+        print ('Loading annotations and questions...')
+        #train_anno = json.load(open('annotations/v2_mscoco_train2014_annotations.json', 'r'))
+        #val_anno = json.load(open('annotations/v2_mscoco_val2014_annotations.json', 'r'))
+        train_qa = json.load(open(os.path.join(data_dir,"dvqa","qa","train_qa.json"), 'r'))
+        val_easy_qa = json.load(open(os.path.join(data_dir,"dvqa","qa","val_easy_qa.json"), 'r'))
 
-        train_ques = json.load(open('annotations/v2_OpenEnded_mscoco_train2014_questions.json', 'r'))
-        val_ques = json.load(open('annotations/v2_OpenEnded_mscoco_val2014_questions.json', 'r'))
+        #train_ques = json.load(open('annotations/v2_OpenEnded_mscoco_train2014_questions.json', 'r'))
+        #val_ques = json.load(open('annotations/v2_OpenEnded_mscoco_val2014_questions.json', 'r'))
 
         subtype = 'train2014'
-        for i in range(len(train_anno['annotations'])):
-            ans = train_anno['annotations'][i]['multiple_choice_answer']
-            question_id = train_anno['annotations'][i]['question_id']
-            image_path = imdir%(subtype, subtype, train_anno['annotations'][i]['image_id'])
-
-            question = train_ques['questions'][i]['question']
-
+        for i in train_qa:
+            ans = i["answer"]#train_anno['annotations'][i]['multiple_choice_answer']
+            question_id = i['question_id']#train_anno['annotations'][i]['question_id']
+            image_path = os.path.join(imdir,i["image"])#imdir%(subtype, subtype, train_anno['annotations'][i]['image_id'])
+            question = i['question']#train_ques['questions'][i]['question']
             train.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'ans': ans})
         
         subtype = 'val2014'
-        for i in range(len(val_anno['annotations'])):
-            ans = val_anno['annotations'][i]['multiple_choice_answer']
-            question_id = val_anno['annotations'][i]['question_id']
-            image_path = imdir%(subtype, subtype, val_anno['annotations'][i]['image_id'])
+        for i in val_easy_qa:
+            ans = i["answer"]#val_anno['annotations'][i]['multiple_choice_answer']
+            question_id = i['question_id']#val_anno['annotations'][i]['question_id']
+            image_path = os.path.join(imdir,i["image"])#imdir%(subtype, subtype, val_anno['annotations'][i]['image_id'])
 
-            question = val_ques['questions'][i]['question']
+            question = i['question']#val_ques['questions'][i]['question']
 
             test.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'ans': ans})
     else:
-        print 'Loading annotations and questions...'
+        print ('Loading annotations and questions...')
         train_anno = json.load(open('annotations/v2_mscoco_train2014_annotations.json', 'r'))
         val_anno = json.load(open('annotations/v2_mscoco_val2014_annotations.json', 'r'))
 
@@ -106,10 +109,10 @@ def main(params):
 
             test.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'ans': ans})
 
-    print 'Training sample %d, Testing sample %d...' %(len(train), len(test))
+    print ('Training sample %d, Testing sample %d...' %(len(train), len(test)))
 
-    json.dump(train, open('vqa_raw_train.json', 'w'))
-    json.dump(test, open('vqa_raw_test.json', 'w'))
+    json.dump(train, open(os.path.join(output_dir,'vqa_raw_train.json'), 'w'))
+    json.dump(test, open(os.path.join(output_dir,'vqa_raw_test.json'), 'w'))
 
 if __name__ == "__main__":
 
@@ -121,8 +124,8 @@ if __name__ == "__main__":
   
     args = parser.parse_args()
     params = vars(args)
-    print 'parsed input parameters:'
-    print json.dumps(params, indent = 2)
+    print ('parsed input parameters:')
+    print (json.dumps(params, indent = 2))
     main(params)
 
 
